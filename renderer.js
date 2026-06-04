@@ -1,190 +1,571 @@
+ // renderer.js — Quick Note Taker (Final Project Edition)
+// Features added: Export PDF, Trash Bin, Recent Files, Shortcuts Dialog, Statistics, Zoom
+
 window.addEventListener('DOMContentLoaded', async () => {
-    // Original DOM selection structures kept intact
-    const textarea = document.getElementById('note');
-    const titleInput = document.getElementById('note-title');
-    const saveBtn = document.getElementById('save');
-    const saveAsBtn = document.getElementById('save-as');
-    const openFileBtn = document.getElementById('open-file');
-    const newNoteBtn = document.getElementById('new-note');
-    const noteList = document.getElementById('note-list');
-    const statusEl = document.getElementById('save_status');
-    // Slide 9 - Step 1: Grab the newly added layout element
-    const wordCountEl = document.getElementById('word-count');
 
-    // Original State variables remain completely untouched
-    let notes = [];
-    let currentNoteId = null;
+    // ── DOM references ─────────────────────────────────────────────────────────
+    const textarea       = document.getElementById('note');
+    const titleInput     = document.getElementById('note-title');
+    const saveBtn        = document.getElementById('saveBtn');
+    const saveAsBtn      = document.getElementById('saveAsBtn');
+    const openFileBtn    = document.getElementById('openFileBtn');
+    const exportPdfBtn   = document.getElementById('exportPdfBtn');
+    const newNoteBtn     = document.getElementById('new-note-btn');
+    const trashBtn       = document.getElementById('trash-btn');
+    const noteList       = document.getElementById('note-list');
+    const statusDot      = document.getElementById('statusDot');
+    const statusText     = document.getElementById('statusText');
+    const wordCountEl    = document.getElementById('wordCount');
+    const charCountEl    = document.getElementById('charCount');
+    const lineNumbers    = document.getElementById('lineNumbers');
+    const noteMeta       = document.getElementById('noteMeta');
+    const emptyState     = document.getElementById('emptyState');
+    const searchInput    = document.getElementById('search-input');
+    const zoomIndicator  = document.getElementById('zoom-indicator');
+
+    // Modals
+    const shortcutsModal = document.getElementById('shortcutsModal');
+    const shortcutsClose = document.getElementById('shortcutsClose');
+    const statsModal     = document.getElementById('statsModal');
+    const statsClose     = document.getElementById('statsClose');
+    const statsGrid      = document.getElementById('statsGrid');
+    const statsExtra     = document.getElementById('statsExtra');
+    const trashModal     = document.getElementById('trashModal');
+    const trashClose     = document.getElementById('trashClose');
+    const trashList      = document.getElementById('trashList');
+
+    // ── App state ──────────────────────────────────────────────────────────────
+    let notes            = [];
+    let currentNoteId    = null;
     let lastSavedContent = '';
-    let debounceTimer = null;
+    let debounceTimer    = null;
+    let searchQuery      = '';
 
-    // Slide 7 & 8 - Step 2: Spacing-regulated Word/Character Count Engine (Added on top)
-    function updateWordCount() {
-        const text = textarea.value.trim();
-        const words = text === '' ? 0 : text.split(/\s+/).length;
-        const characters = textarea.value.length;
-        wordCountEl.textContent = `Words: ${words} | Characters: ${characters}`;
+    // ── FEATURE: Zoom — load saved zoom preference ─────────────────────────────
+    let zoomFactor = 1.0;
+    const settings = await window.electronAPI.getSettings();// Load saved theme
+    if (settings.theme === 'light') {
+        document.body.classList.add('light');
+        document.getElementById('theme-toggle').textContent = '☀️';
+    }
+    
+    if (settings.zoomFactor) {
+        zoomFactor = settings.zoomFactor;
+        applyZoom(zoomFactor, false); // apply without saving again
     }
 
-    // Original Sidebar rendering engine remains intact
+    // ════════════════════════════════════════════════════════════════════════════
+    // Utility helpers
+    // ════════════════════════════════════════════════════════════════════════════
+
+    function setStatus(state, msg) {
+        statusDot.className    = 'status-dot ' + (state || '');
+        statusText.textContent = msg;
+    }
+
+    function updateCounts() {
+        const text = textarea.value.trim();
+        wordCountEl.textContent = text ? text.split(/\s+/).length : 0;
+        charCountEl.textContent = textarea.value.length;
+    }
+
+    function updateLineNumbers() {
+        const count = textarea.value.split('\n').length;
+        lineNumbers.textContent = Array.from({ length: count }, (_, i) => i + 1).join('\n');
+    }
+
+    function showEditor(visible) {
+        textarea.style.display    = visible ? '' : 'none';
+        lineNumbers.style.display = visible ? '' : 'none';
+        emptyState.classList.toggle('show', !visible);
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ── FEATURE: Zoom ──────────────────────────────────────────────────────────
+    // Uses webContents.setZoomFactor() via the window.devicePixelRatio approach.
+    // In Electron, the renderer can change its own zoom directly.
+    function applyZoom(factor, save = true) {
+        zoomFactor = Math.min(Math.max(factor, 0.5), 2.0); // clamp 50%–200%
+        // Electron exposes this directly in renderer process
+        if (save) window.electronAPI.saveZoom(zoomFactor); {
+            window.electronAPI.saveZoom(zoomFactor);
+        }
+        // Use CSS zoom for renderer-side zoom (works in Electron's Chromium)
+        window.electronAPI.applyZoom(zoomFactor);
+        // Show zoom indicator when not at 100%
+        if (Math.abs(zoomFactor - 1.0) > 0.01) {
+            zoomIndicator.style.display = '';
+            zoomIndicator.textContent   = Math.round(zoomFactor * 100) + '%';
+        } else {
+            zoomIndicator.style.display = 'none';
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // Render sidebar note list (with search filter)
+    // ════════════════════════════════════════════════════════════════════════════
+
     function renderNoteList() {
         noteList.innerHTML = '';
-        notes.forEach(note => {
-            const div = document.createElement('div');
-            div.className = `note-item ${note.id === currentNoteId ? 'active' : ''}`;
-            const date = new Date(note.updatedAt || note.createdAt).toLocaleDateString();
 
-            div.innerHTML = `
-                <button class="note-item-delete" data-id="${note.id}">Delete</button>
-                <div class="note-item-title">${note.title || 'Untitled Note'}</div>
-                <div class="note-item-date">${date}</div>
+        const filtered = searchQuery
+            ? notes.filter(n =>
+                (n.title   || '').toLowerCase().includes(searchQuery) ||
+                (n.content || '').toLowerCase().includes(searchQuery)
+              )
+            : notes;
+
+        if (filtered.length === 0) {
+            const el = document.createElement('div');
+            el.className   = 'sidebar-empty';
+            el.textContent = searchQuery ? 'No notes match your search.' : 'No notes yet. Click + New Note.';
+            noteList.appendChild(el);
+            return;
+        }
+
+        filtered.forEach(note => {
+            const isActive = note.id === currentNoteId;
+            const item     = document.createElement('div');
+            item.className = 'note-item' + (isActive ? ' active' : '');
+
+            const date    = new Date(note.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+            const preview = (note.content || '').replace(/\n/g, ' ').trim().slice(0, 45) || '—';
+
+            item.innerHTML = `
+                <div class="note-item-body">
+                    <div class="note-item-title">${escapeHtml(note.title || 'Untitled')}</div>
+                    <div class="note-item-preview">${escapeHtml(preview)}</div>
+                    <div class="note-item-date">${date}</div>
+                </div>
+                <button class="note-item-del" title="Move to trash">✕</button>
             `;
 
-            div.addEventListener('click', () => switchNote(note.id));
-            div.querySelector('.note-item-delete').addEventListener('click', (e) => {
-                e.stopPropagation();
-                deleteNote(note.id);
+            item.addEventListener('click', async (e) => {
+                if (e.target.classList.contains('note-item-del')) return;
+                await switchNote(note.id);
             });
-            noteList.appendChild(div);
+
+            item.querySelector('.note-item-del').addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await deleteNote(note.id);
+            });
+
+            noteList.appendChild(item);
         });
     }
 
-    // Original switchNote code with updateWordCount hook added safely inside
+    // ════════════════════════════════════════════════════════════════════════════
+    // Switch to a note
+    // ════════════════════════════════════════════════════════════════════════════
+
     async function switchNote(id) {
-        if (id === currentNoteId) return;
-        if (textarea.value !== lastSavedContent) {
-            if ((await window.electronAPI.newNote()) === 1) return;
+        if (currentNoteId && textarea.value !== lastSavedContent) {
+            const res = await window.electronAPI.confirmNewNote();
+            if (!res.confirmed) return;
         }
 
         const note = notes.find(n => n.id === id);
-        if (note) {
-            currentNoteId = note.id;
-            titleInput.value = note.title || '';
-            textarea.value = note.content || '';
-            lastSavedContent = textarea.value;
+        if (!note) return;
 
-            updateWordCount(); // Slide 9 - Step 3: Call counter on note switch
-            renderNoteList();
-        }
+        currentNoteId        = note.id;
+        titleInput.value     = note.title   || '';
+        textarea.value       = note.content || '';
+        lastSavedContent     = note.content || '';
+        noteMeta.textContent = 'Last saved: ' + new Date(note.updatedAt).toLocaleString();
+
+        showEditor(true);
+        updateCounts();
+        updateLineNumbers();
+        setStatus('saved', 'Loaded');
+        renderNoteList();
     }
 
-    // Original saveCurrentNote logic remains completely untouched
+    // ════════════════════════════════════════════════════════════════════════════
+    // Save current note
+    // ════════════════════════════════════════════════════════════════════════════
+
     async function saveCurrentNote() {
-        if (!currentNoteId) return;
-        statusEl.textContent = 'Saving...';
-        const updatedNote = {
-            id: currentNoteId,
-            title: titleInput.value.trim() || 'Untitled Note',
-            content: textarea.value,
+        if (!currentNoteId) { setStatus('', 'No note selected'); return; }
+
+        const note = {
+            id:      currentNoteId,
+            title:   titleInput.value.trim() || 'Untitled',
+            content: textarea.value
+        };
+
+        setStatus('saving', 'Saving…');
+        await window.electronAPI.saveNoteJson(note);
+
+        const idx = notes.findIndex(n => n.id === currentNoteId);
+        if (idx !== -1) {
+            notes[idx] = { ...notes[idx], ...note, updatedAt: new Date().toISOString() };
+        }
+
+        lastSavedContent     = textarea.value;
+        noteMeta.textContent = 'Last saved: ' + new Date().toLocaleString();
+
+        renderNoteList();
+        setStatus('saved', 'Saved at ' + new Date().toLocaleTimeString());
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // FEATURE: Delete → moves to Trash (not permanent)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    async function deleteNote(id) {
+        const res = await window.electronAPI.confirmDeleteNote();
+        if (!res.confirmed) return;
+
+        // main.js moves the note to trash.json before deleting from notes.json
+        await window.electronAPI.deleteNoteJson(id);
+        notes = notes.filter(n => n.id !== id);
+
+        if (currentNoteId === id) {
+            currentNoteId        = null;
+            titleInput.value     = '';
+            textarea.value       = '';
+            lastSavedContent     = '';
+            noteMeta.textContent = '';
+            showEditor(false);
+            setStatus('deleted', 'Note moved to trash');
+        }
+
+        renderNoteList();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // Create new note
+    // ════════════════════════════════════════════════════════════════════════════
+
+    async function createNewNote() {
+        if (currentNoteId && textarea.value !== lastSavedContent) {
+            const res = await window.electronAPI.confirmNewNote();
+            if (!res.confirmed) return;
+        }
+
+        const newNote = {
+            id:        Date.now().toString(),
+            title:     'Untitled',
+            content:   '',
+            createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
-        await window.electronAPI.saveNote(updatedNote);
-        const index = notes.findIndex(n => n.id === currentNoteId);
-        if (index !== -1) notes[index] = { ...notes[index], ...updatedNote };
-        lastSavedContent = textarea.value;
-        statusEl.textContent = 'Saved';
-        renderNoteList();
-    }
 
-    // Original deleteNote functionality remains completely untouched
-    async function deleteNote(id) {
-        if ((await window.electronAPI.newNote()) === 1) return;
-        await window.electronAPI.deleteNote(id);
-        notes = notes.filter(n => n.id !== id);
-        if (currentNoteId === id) {
-            if (notes.length > 0) {
-                currentNoteId = null;
-                switchNote(notes[0].id);
-            } else {
-                currentNoteId = null;
-                titleInput.value = ''; textarea.value = ''; lastSavedContent = '';
-                updateWordCount(); // Update display counts when text field clears
-            }
-        }
-        renderNoteList();
-    }
-
-    // Original newNoteBtn event logic remains unchanged with added layout metrics hook
-    newNoteBtn.addEventListener('click', async () => {
-        if (textarea.value !== lastSavedContent) {
-            if ((await window.electronAPI.newNote()) === 1) return;
-        }
-        const newNote = { id: Date.now().toString(), title: '', content: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        await window.electronAPI.saveNoteJson(newNote);
         notes.unshift(newNote);
-        currentNoteId = newNote.id;
-        titleInput.value = ''; textarea.value = ''; lastSavedContent = '';
+
+        currentNoteId        = newNote.id;
+        titleInput.value     = '';
+        textarea.value       = '';
+        lastSavedContent     = '';
+        noteMeta.textContent = '';
+
+        showEditor(true);
         renderNoteList();
-        updateWordCount(); // Reset display counts for a clean, new blank canvas
         titleInput.focus();
-    });
+        setStatus('saved', 'New note created');
+    }
 
-    saveBtn.addEventListener('click', () => saveCurrentNote());
+    // ════════════════════════════════════════════════════════════════════════════
+    // Open file from disk
+    // ════════════════════════════════════════════════════════════════════════════
 
-    saveAsBtn.addEventListener('click', async () => {
-        try {
-            const result = await window.electronAPI.saveAs(textarea.value);
-            if (result.success) {
-                lastSavedContent = textarea.value;
-                statusEl.textContent = `Saved to: ${result.filePath}`;
-            } else {
-                statusEl.textContent = 'Save as canceled.';
-            }
-        } catch (error) {
-            console.error('Error saving as:', error);
-            statusEl.textContent = 'Error saving as';
+    async function openFile() {
+        if (currentNoteId && textarea.value !== lastSavedContent) {
+            const res = await window.electronAPI.confirmNewNote();
+            if (!res.confirmed) return;
         }
-    });
 
-    openFileBtn.addEventListener('click', async () => {
-        try {
-            const result = await window.electronAPI.openFile();
-            if (result.success) {
-                textarea.value = result.content;
-                lastSavedContent = result.content;
-                statusEl.textContent = `Opened: ${result.filePath}`;
-                updateWordCount();
-            } else {r
-                statusEl.textContent = 'Open file canceled.';
-            }
-        } catch (error) {
-            console.error('Error opening file:', error);
-            statusEl.textContent = 'Error opening file';
+        const result = await window.electronAPI.loadTxtFile();
+        if (!result.success) return;
+
+        await importFileContent(result.filePath, result.content);
+    }
+
+    // ── FEATURE: Open recent file by path ─────────────────────────────────────
+    async function openRecentFile(filePath) {
+        if (currentNoteId && textarea.value !== lastSavedContent) {
+            const res = await window.electronAPI.confirmNewNote();
+            if (!res.confirmed) return;
         }
+
+        const result = await window.electronAPI.loadFileByPath(filePath);
+        if (!result.success) {
+            setStatus('', 'Could not open: ' + filePath.split(/[\\/]/).pop());
+            return;
+        }
+
+        await importFileContent(result.filePath, result.content);
+    }
+
+    // Shared helper — creates a note from a file path + content
+    async function importFileContent(filePath, content) {
+        const fileName = filePath.split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
+
+        const newNote = {
+            id:        Date.now().toString(),
+            title:     fileName,
+            content,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        await window.electronAPI.saveNoteJson(newNote);
+        notes.unshift({ ...newNote });
+
+        currentNoteId        = newNote.id;
+        titleInput.value     = newNote.title;
+        textarea.value       = newNote.content;
+        lastSavedContent     = newNote.content;
+        noteMeta.textContent = 'Last saved: ' + new Date().toLocaleString();
+
+        showEditor(true);
+        updateCounts();
+        updateLineNumbers();
+        renderNoteList();
+        setStatus('saved', 'File imported');
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // Save As
+    // ════════════════════════════════════════════════════════════════════════════
+
+    async function saveAs() {
+        if (!currentNoteId) { setStatus('', 'No note to export'); return; }
+        const result = await window.electronAPI.saveNoteAs(textarea.value);
+        if (result.success) {
+            setStatus('saved', 'Exported to ' + result.filePath.split(/[\\/]/).pop());
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // FEATURE: Export as PDF
+    // Uses webContents.printToPDF() in main.js. The renderer just triggers it.
+    // ════════════════════════════════════════════════════════════════════════════
+
+    async function exportPdf() {
+        if (!currentNoteId) { setStatus('', 'No note to export'); return; }
+        setStatus('saving', 'Exporting PDF…');
+        const title  = titleInput.value.trim() || 'Untitled';
+        const result = await window.electronAPI.exportPdf(title);
+        if (result.success) {
+            setStatus('saved', 'PDF saved: ' + result.filePath.split(/[\\/]/).pop());
+        } else if (result.reason !== 'canceled') {
+            setStatus('', 'PDF export failed: ' + result.reason);
+        } else {
+            setStatus('', 'PDF export canceled');
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // FEATURE: Statistics modal
+    // Fetches aggregated data from main.js (which reads notes.json directly)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    async function openStats() {
+        const s = await window.electronAPI.getStats();
+
+        statsGrid.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-card-num">${s.total}</div>
+                <div class="stat-card-label">Total Notes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-num">${s.totalWords.toLocaleString()}</div>
+                <div class="stat-card-label">Total Words</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-num">${s.avgWords}</div>
+                <div class="stat-card-label">Avg Words / Note</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-num">${s.longestWords || 0}</div>
+                <div class="stat-card-label">Longest Note (words)</div>
+            </div>
+        `;
+
+        statsExtra.innerHTML = `
+            <div class="stat-row">
+                <span class="stat-row-label">Most active day</span>
+                <span class="stat-row-val">${s.mostActiveDay}</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-row-label">Longest note</span>
+                <span class="stat-row-val">${escapeHtml(s.longestNote || '—')}</span>
+            </div>
+        `;
+
+        statsModal.classList.add('show');
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // FEATURE: Trash bin modal
+    // Shows all soft-deleted notes with Restore and Permanently Delete buttons
+    // ════════════════════════════════════════════════════════════════════════════
+
+    async function openTrash() {
+        const trash = await window.electronAPI.getTrash();
+        renderTrashList(trash);
+        trashModal.classList.add('show');
+    }
+
+    function renderTrashList(trash) {
+        if (trash.length === 0) {
+            trashList.innerHTML = '<div class="trash-empty-msg">🗑 Trash is empty</div>';
+            return;
+        }
+
+        trashList.innerHTML = '';
+
+        trash.forEach(note => {
+            const el  = document.createElement('div');
+            el.className = 'trash-item';
+            const del = new Date(note.deletedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            el.innerHTML = `
+                <div class="trash-item-body">
+                    <div class="trash-item-title">${escapeHtml(note.title || 'Untitled')}</div>
+                    <div class="trash-item-date">Deleted ${del}</div>
+                </div>
+                <div class="trash-actions">
+                    <button class="btn-restore" data-id="${note.id}">↩ Restore</button>
+                    <button class="btn-perma-del" data-id="${note.id}">✕ Delete</button>
+                </div>
+            `;
+
+            // Restore
+            el.querySelector('.btn-restore').addEventListener('click', async () => {
+                await window.electronAPI.restoreNote(note.id);
+                // Reload notes in sidebar
+                notes = await window.electronAPI.getNotes();
+                renderNoteList();
+                // Refresh trash modal
+                const updated = await window.electronAPI.getTrash();
+                renderTrashList(updated);
+                setStatus('saved', 'Note restored');
+            });
+
+            // Permanently delete
+            el.querySelector('.btn-perma-del').addEventListener('click', async () => {
+                const res = await window.electronAPI.permanentDelete(note.id);
+                if (res.confirmed) {
+                    const updated = await window.electronAPI.getTrash();
+                    renderTrashList(updated);
+                    setStatus('deleted', 'Permanently deleted');
+                }
+            });
+
+            trashList.appendChild(el);
+        });
+
+        // Empty trash button
+        const emptyBtn = document.createElement('button');
+        emptyBtn.className   = 'btn-empty-trash';
+        emptyBtn.textContent = '🗑 Empty Trash';
+        emptyBtn.addEventListener('click', async () => {
+            const res = await window.electronAPI.emptyTrash();
+            if (res.confirmed) renderTrashList([]);
+        });
+        trashList.appendChild(emptyBtn);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // Modal close helpers
+    // ════════════════════════════════════════════════════════════════════════════
+
+    function closeModal(overlay) {
+        overlay.classList.remove('show');
+    }
+
+    // Close on X button
+    shortcutsClose.addEventListener('click', () => closeModal(shortcutsModal));
+    statsClose.addEventListener('click',     () => closeModal(statsModal));
+    trashClose.addEventListener('click',     () => closeModal(trashModal));
+
+    // Close on backdrop click
+    [shortcutsModal, statsModal, trashModal].forEach(m => {
+        m.addEventListener('click', (e) => { if (e.target === m) closeModal(m); });
     });
 
-    // Original input listening hooks with added updateWordCount hook (Slide 9 - Step 3)
+    // ════════════════════════════════════════════════════════════════════════════
+    // Menu listeners (main → renderer)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    window.electronAPI.onMenuAction('menu-new-note',    () => createNewNote());
+    window.electronAPI.onMenuAction('menu-open-file',   () => openFile());
+    window.electronAPI.onMenuAction('menu-save',        () => saveCurrentNote());
+    window.electronAPI.onMenuAction('menu-save-as',     () => saveAs());
+    window.electronAPI.onMenuAction('menu-export-pdf',  () => exportPdf());
+    window.electronAPI.onMenuAction('menu-open-trash',  () => openTrash());
+    window.electronAPI.onMenuAction('menu-stats',       () => openStats());
+    window.electronAPI.onMenuAction('menu-shortcuts',   () => shortcutsModal.classList.add('show'));
+
+    // ── FEATURE: Zoom via menu ─────────────────────────────────────────────────
+    window.electronAPI.onMenuAction('menu-zoom-in',    () => applyZoom(zoomFactor + 0.1));
+    window.electronAPI.onMenuAction('menu-zoom-out',   () => applyZoom(zoomFactor - 0.1));
+    window.electronAPI.onMenuAction('menu-zoom-reset', () => applyZoom(1.0));
+
+    // ── FEATURE: Open recent file via menu ────────────────────────────────────
+    window.electronAPI.onMenuAction('menu-open-recent', (_event, filePath) => openRecentFile(filePath));
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // Button click listeners
+    // ════════════════════════════════════════════════════════════════════════════
+
+    newNoteBtn.addEventListener('click',   () => createNewNote());
+    saveBtn.addEventListener('click',      () => saveCurrentNote());
+    saveAsBtn.addEventListener('click',    () => saveAs());
+    openFileBtn.addEventListener('click',  () => openFile());
+    exportPdfBtn.addEventListener('click', () => exportPdf());
+    trashBtn.addEventListener('click',     () => openTrash());
+
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+        const isLight = document.body.classList.toggle('light');
+        document.getElementById('theme-toggle').textContent = isLight ? '☀️' : '🌙';
+        window.electronAPI.saveTheme(isLight ? 'light' : 'dark');
+    });
+
+    // ── FEATURE: Search ────────────────────────────────────────────────────────
+    searchInput.addEventListener('input', () => {
+        searchQuery = searchInput.value.trim().toLowerCase();
+        renderNoteList();
+    });
+
+    // ── Auto-save 5 seconds after last keystroke ───────────────────────────────
     textarea.addEventListener('input', () => {
-        statusEl.textContent = 'Unsaved changes';
+        setStatus('saving', 'Unsaved changes…');
+        updateCounts();
+        updateLineNumbers();
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => saveCurrentNote(), 5000);
     });
 
     titleInput.addEventListener('input', () => {
-        statusEl.textContent = 'Unsaved changes';
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => saveCurrentNote(), 5000);
     });
 
-    // Original Top Menu Action listening routes 
-    window.electronAPI.onMenuAction('menu-new', () => newNoteBtn.click());
-    window.electronAPI.onMenuAction('menu-save', () => saveBtn.click());
-    window.electronAPI.onMenuAction('menu-save-as', () => saveAsBtn.click());
-    window.electronAPI.onMenuAction('menu-open', () => openFileBtn.click());
+    textarea.addEventListener('scroll', () => {
+        lineNumbers.scrollTop = textarea.scrollTop;
+    });
 
-    // Original Lifecycle Boot Hook Setup
+    // ════════════════════════════════════════════════════════════════════════════
+    // Startup
+    // ════════════════════════════════════════════════════════════════════════════
+
     notes = await window.electronAPI.getNotes();
+
     if (notes.length > 0) {
-        const mostRecentNote = notes.reduce((max, note) => new Date(note.updatedAt) > new Date(max.updatedAt) ? note : max, notes[0]);
-        currentNoteId = mostRecentNote.id;
-        titleInput.value = mostRecentNote.title || '';
-        textarea.value = mostRecentNote.content || '';
-        lastSavedContent = textarea.value;
+        const mostRecent = notes.reduce((a, b) =>
+            new Date(a.updatedAt) > new Date(b.updatedAt) ? a : b
+        );
+        renderNoteList();
+        await switchNote(mostRecent.id);
     } else {
-        const defaultNote = { id: Date.now().toString(), title: 'Welcome Note', content: 'Type your thoughts here...', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-        notes.push(defaultNote);
-        await window.electronAPI.saveNote(defaultNote);
-        currentNoteId = defaultNote.id;
-        titleInput.value = defaultNote.title; textarea.value = defaultNote.content; lastSavedContent = textarea.value;
+        renderNoteList();
+        await createNewNote();
     }
-    renderNoteList();
-    updateWordCount(); // Establish counts accurately on application startup boot
 });
