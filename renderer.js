@@ -4,42 +4,44 @@
 window.addEventListener('DOMContentLoaded', async () => {
 
     // ── DOM references ─────────────────────────────────────────────────────────
-    const textarea       = document.getElementById('note');
-    const titleInput     = document.getElementById('note-title');
-    const saveBtn        = document.getElementById('saveBtn');
-    const saveAsBtn      = document.getElementById('saveAsBtn');
-    const openFileBtn    = document.getElementById('openFileBtn');
-    const exportPdfBtn   = document.getElementById('exportPdfBtn');
-    const newNoteBtn     = document.getElementById('new-note-btn');
-    const trashBtn       = document.getElementById('trash-btn');
-    const noteList       = document.getElementById('note-list');
-    const statusDot      = document.getElementById('statusDot');
-    const statusText     = document.getElementById('statusText');
-    const wordCountEl    = document.getElementById('wordCount');
-    const charCountEl    = document.getElementById('charCount');
-    const lineNumbers    = document.getElementById('lineNumbers');
-    const noteMeta       = document.getElementById('noteMeta');
-    const emptyState     = document.getElementById('emptyState');
-    const searchInput    = document.getElementById('search-input');
-    const zoomIndicator  = document.getElementById('zoom-indicator');
+    const textarea = document.getElementById('note');
+    const titleInput = document.getElementById('note-title');
+    const saveBtn = document.getElementById('saveBtn');
+    const saveAsBtn = document.getElementById('saveAsBtn');
+    const openFileBtn = document.getElementById('openFileBtn');
+    const exportPdfBtn = document.getElementById('exportPdfBtn');
+    const emojiBtn = document.getElementById('emojiBtn');
+    const emojiPanel = document.getElementById('emojiPanel');
+    const newNoteBtn = document.getElementById('new-note-btn');
+    const trashBtn = document.getElementById('trash-btn');
+    const noteList = document.getElementById('note-list');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const wordCountEl = document.getElementById('wordCount');
+    const charCountEl = document.getElementById('charCount');
+    const lineNumbers = document.getElementById('lineNumbers');
+    const noteMeta = document.getElementById('noteMeta');
+    const emptyState = document.getElementById('emptyState');
+    const searchInput = document.getElementById('search-input');
+    const zoomIndicator = document.getElementById('zoom-indicator');
 
     // Modals
     const shortcutsModal = document.getElementById('shortcutsModal');
     const shortcutsClose = document.getElementById('shortcutsClose');
-    const statsModal     = document.getElementById('statsModal');
-    const statsClose     = document.getElementById('statsClose');
-    const statsGrid      = document.getElementById('statsGrid');
-    const statsExtra     = document.getElementById('statsExtra');
-    const trashModal     = document.getElementById('trashModal');
-    const trashClose     = document.getElementById('trashClose');
-    const trashList      = document.getElementById('trashList');
+    const statsModal = document.getElementById('statsModal');
+    const statsClose = document.getElementById('statsClose');
+    const statsGrid = document.getElementById('statsGrid');
+    const statsExtra = document.getElementById('statsExtra');
+    const trashModal = document.getElementById('trashModal');
+    const trashClose = document.getElementById('trashClose');
+    const trashList = document.getElementById('trashList');
 
     // ── App state ──────────────────────────────────────────────────────────────
-    let notes            = [];
-    let currentNoteId    = null;
+    let notes = [];
+    let currentNoteId = null;
     let lastSavedContent = '';
-    let debounceTimer    = null;
-    let searchQuery      = '';
+    let debounceTimer = null;
+    let searchQuery = '';
 
     // ── FEATURE: Zoom — load saved zoom preference ─────────────────────────────
     let zoomFactor = 1.0;
@@ -48,7 +50,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         document.body.classList.add('light');
         document.getElementById('theme-toggle').textContent = '☀️';
     }
-    
+
     if (settings.zoomFactor) {
         zoomFactor = settings.zoomFactor;
         applyZoom(zoomFactor, false); // apply without saving again
@@ -59,7 +61,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // ════════════════════════════════════════════════════════════════════════════
 
     function setStatus(state, msg) {
-        statusDot.className    = 'status-dot ' + (state || '');
+        statusDot.className = 'status-dot ' + (state || '');
         statusText.textContent = msg;
     }
 
@@ -75,7 +77,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     function showEditor(visible) {
-        textarea.style.display    = visible ? '' : 'none';
+        textarea.style.display = visible ? '' : 'none';
         lineNumbers.style.display = visible ? '' : 'none';
         emptyState.classList.toggle('show', !visible);
     }
@@ -83,6 +85,20 @@ window.addEventListener('DOMContentLoaded', async () => {
     function escapeHtml(str) {
         return String(str)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function insertAtCursor(textarea, text) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const before = textarea.value.substring(0, start);
+        const after = textarea.value.substring(end);
+        textarea.value = before + text + after;
+        textarea.selectionStart = textarea.selectionEnd = start + text.length;
+        textarea.focus();
+        updateCounts();
+        updateLineNumbers();
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => saveCurrentNote(), 5000);
     }
 
     // ── FEATURE: Zoom ──────────────────────────────────────────────────────────
@@ -99,7 +115,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         // Show zoom indicator when not at 100%
         if (Math.abs(zoomFactor - 1.0) > 0.01) {
             zoomIndicator.style.display = '';
-            zoomIndicator.textContent   = Math.round(zoomFactor * 100) + '%';
+            zoomIndicator.textContent = Math.round(zoomFactor * 100) + '%';
         } else {
             zoomIndicator.style.display = 'none';
         }
@@ -114,14 +130,14 @@ window.addEventListener('DOMContentLoaded', async () => {
 
         const filtered = searchQuery
             ? notes.filter(n =>
-                (n.title   || '').toLowerCase().includes(searchQuery) ||
+                (n.title || '').toLowerCase().includes(searchQuery) ||
                 (n.content || '').toLowerCase().includes(searchQuery)
-              )
+            )
             : notes;
 
         if (filtered.length === 0) {
             const el = document.createElement('div');
-            el.className   = 'sidebar-empty';
+            el.className = 'sidebar-empty';
             el.textContent = searchQuery ? 'No notes match your search.' : 'No notes yet. Click + New Note.';
             noteList.appendChild(el);
             return;
@@ -129,10 +145,10 @@ window.addEventListener('DOMContentLoaded', async () => {
 
         filtered.forEach(note => {
             const isActive = note.id === currentNoteId;
-            const item     = document.createElement('div');
+            const item = document.createElement('div');
             item.className = 'note-item' + (isActive ? ' active' : '');
 
-            const date    = new Date(note.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+            const date = new Date(note.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
             const preview = (note.content || '').replace(/\n/g, ' ').trim().slice(0, 45) || '—';
 
             item.innerHTML = `
@@ -171,10 +187,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         const note = notes.find(n => n.id === id);
         if (!note) return;
 
-        currentNoteId        = note.id;
-        titleInput.value     = note.title   || '';
-        textarea.value       = note.content || '';
-        lastSavedContent     = note.content || '';
+        currentNoteId = note.id;
+        titleInput.value = note.title || '';
+        textarea.value = note.content || '';
+        lastSavedContent = note.content || '';
         noteMeta.textContent = 'Last saved: ' + new Date(note.updatedAt).toLocaleString();
 
         showEditor(true);
@@ -192,8 +208,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (!currentNoteId) { setStatus('', 'No note selected'); return; }
 
         const note = {
-            id:      currentNoteId,
-            title:   titleInput.value.trim() || 'Untitled',
+            id: currentNoteId,
+            title: titleInput.value.trim() || 'Untitled',
             content: textarea.value
         };
 
@@ -205,7 +221,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             notes[idx] = { ...notes[idx], ...note, updatedAt: new Date().toISOString() };
         }
 
-        lastSavedContent     = textarea.value;
+        lastSavedContent = textarea.value;
         noteMeta.textContent = 'Last saved: ' + new Date().toLocaleString();
 
         renderNoteList();
@@ -225,10 +241,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         notes = notes.filter(n => n.id !== id);
 
         if (currentNoteId === id) {
-            currentNoteId        = null;
-            titleInput.value     = '';
-            textarea.value       = '';
-            lastSavedContent     = '';
+            currentNoteId = null;
+            titleInput.value = '';
+            textarea.value = '';
+            lastSavedContent = '';
             noteMeta.textContent = '';
             showEditor(false);
             setStatus('deleted', 'Note moved to trash');
@@ -248,9 +264,9 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
 
         const newNote = {
-            id:        Date.now().toString(),
-            title:     'Untitled',
-            content:   '',
+            id: Date.now().toString(),
+            title: 'Untitled',
+            content: '',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
@@ -258,10 +274,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         await window.electronAPI.saveNoteJson(newNote);
         notes.unshift(newNote);
 
-        currentNoteId        = newNote.id;
-        titleInput.value     = '';
-        textarea.value       = '';
-        lastSavedContent     = '';
+        currentNoteId = newNote.id;
+        titleInput.value = '';
+        textarea.value = '';
+        lastSavedContent = '';
         noteMeta.textContent = '';
 
         showEditor(true);
@@ -307,8 +323,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         const fileName = filePath.split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
 
         const newNote = {
-            id:        Date.now().toString(),
-            title:     fileName,
+            id: Date.now().toString(),
+            title: fileName,
             content,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -317,10 +333,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         await window.electronAPI.saveNoteJson(newNote);
         notes.unshift({ ...newNote });
 
-        currentNoteId        = newNote.id;
-        titleInput.value     = newNote.title;
-        textarea.value       = newNote.content;
-        lastSavedContent     = newNote.content;
+        currentNoteId = newNote.id;
+        titleInput.value = newNote.title;
+        textarea.value = newNote.content;
+        lastSavedContent = newNote.content;
         noteMeta.textContent = 'Last saved: ' + new Date().toLocaleString();
 
         showEditor(true);
@@ -342,20 +358,20 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════════════
-    // FEATURE: Export as PDF
-    // Uses webContents.printToPDF() in main.js. The renderer just triggers it.
-    // ════════════════════════════════════════════════════════════════════════════
-
     async function exportPdf() {
-        if (!currentNoteId) { setStatus('', 'No note to export'); return; }
-        setStatus('saving', 'Exporting PDF…');
-        const title  = titleInput.value.trim() || 'Untitled';
-        const result = await window.electronAPI.exportPdf(title);
+        if (!currentNoteId) {
+            setStatus('', 'Select a note first');
+            return;
+        }
+
+        setStatus('saving', 'Exporting PDF...');
+        const result = await window.electronAPI.exportPdf({
+            title: titleInput.value.trim() || 'Untitled',
+            content: textarea.value || ''
+        });
+
         if (result.success) {
             setStatus('saved', 'PDF saved: ' + result.filePath.split(/[\\/]/).pop());
-        } else if (result.reason !== 'canceled') {
-            setStatus('', 'PDF export failed: ' + result.reason);
         } else {
             setStatus('', 'PDF export canceled');
         }
@@ -422,7 +438,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         trashList.innerHTML = '';
 
         trash.forEach(note => {
-            const el  = document.createElement('div');
+            const el = document.createElement('div');
             el.className = 'trash-item';
             const del = new Date(note.deletedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
             el.innerHTML = `
@@ -463,7 +479,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
         // Empty trash button
         const emptyBtn = document.createElement('button');
-        emptyBtn.className   = 'btn-empty-trash';
+        emptyBtn.className = 'btn-empty-trash';
         emptyBtn.textContent = '🗑 Empty Trash';
         emptyBtn.addEventListener('click', async () => {
             const res = await window.electronAPI.emptyTrash();
@@ -482,8 +498,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // Close on X button
     shortcutsClose.addEventListener('click', () => closeModal(shortcutsModal));
-    statsClose.addEventListener('click',     () => closeModal(statsModal));
-    trashClose.addEventListener('click',     () => closeModal(trashModal));
+    statsClose.addEventListener('click', () => closeModal(statsModal));
+    trashClose.addEventListener('click', () => closeModal(trashModal));
 
     // Close on backdrop click
     [shortcutsModal, statsModal, trashModal].forEach(m => {
@@ -494,18 +510,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Menu listeners (main → renderer)
     // ════════════════════════════════════════════════════════════════════════════
 
-    window.electronAPI.onMenuAction('menu-new-note',    () => createNewNote());
-    window.electronAPI.onMenuAction('menu-open-file',   () => openFile());
-    window.electronAPI.onMenuAction('menu-save',        () => saveCurrentNote());
-    window.electronAPI.onMenuAction('menu-save-as',     () => saveAs());
-    window.electronAPI.onMenuAction('menu-export-pdf',  () => exportPdf());
-    window.electronAPI.onMenuAction('menu-open-trash',  () => openTrash());
-    window.electronAPI.onMenuAction('menu-stats',       () => openStats());
-    window.electronAPI.onMenuAction('menu-shortcuts',   () => shortcutsModal.classList.add('show'));
+    window.electronAPI.onMenuAction('menu-new-note', () => createNewNote());
+    window.electronAPI.onMenuAction('menu-open-file', () => openFile());
+    window.electronAPI.onMenuAction('menu-save', () => saveCurrentNote());
+    window.electronAPI.onMenuAction('menu-save-as', () => saveAs());
+    window.electronAPI.onMenuAction('menu-export-pdf', () => exportPdf());
+    window.electronAPI.onMenuAction('menu-open-trash', () => openTrash());
+    window.electronAPI.onMenuAction('menu-stats', () => openStats());
+    window.electronAPI.onMenuAction('menu-shortcuts', () => shortcutsModal.classList.add('show'));
 
     // ── FEATURE: Zoom via menu ─────────────────────────────────────────────────
-    window.electronAPI.onMenuAction('menu-zoom-in',    () => applyZoom(zoomFactor + 0.1));
-    window.electronAPI.onMenuAction('menu-zoom-out',   () => applyZoom(zoomFactor - 0.1));
+    window.electronAPI.onMenuAction('menu-zoom-in', () => applyZoom(zoomFactor + 0.1));
+    window.electronAPI.onMenuAction('menu-zoom-out', () => applyZoom(zoomFactor - 0.1));
     window.electronAPI.onMenuAction('menu-zoom-reset', () => applyZoom(1.0));
 
     // ── FEATURE: Open recent file via menu ────────────────────────────────────
@@ -515,12 +531,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Button click listeners
     // ════════════════════════════════════════════════════════════════════════════
 
-    newNoteBtn.addEventListener('click',   () => createNewNote());
-    saveBtn.addEventListener('click',      () => saveCurrentNote());
-    saveAsBtn.addEventListener('click',    () => saveAs());
-    openFileBtn.addEventListener('click',  () => openFile());
+    newNoteBtn.addEventListener('click', () => createNewNote());
+    saveBtn.addEventListener('click', () => saveCurrentNote());
+    saveAsBtn.addEventListener('click', () => saveAs());
+    openFileBtn.addEventListener('click', () => openFile());
     exportPdfBtn.addEventListener('click', () => exportPdf());
-    trashBtn.addEventListener('click',     () => openTrash());
+    emojiBtn.addEventListener('click', () => emojiPanel.classList.toggle('show'));
+    emojiPanel.addEventListener('click', (event) => {
+        if (event.target.classList.contains('emoji-chip')) {
+            insertAtCursor(textarea, event.target.textContent);
+            emojiPanel.classList.remove('show');
+        }
+    });
+    document.addEventListener('click', (event) => {
+        if (!emojiPanel.contains(event.target) && event.target !== emojiBtn) {
+            emojiPanel.classList.remove('show');
+        }
+    });
+    trashBtn.addEventListener('click', () => openTrash());
 
     document.getElementById('theme-toggle').addEventListener('click', () => {
         const isLight = document.body.classList.toggle('light');
