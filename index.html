@@ -1,105 +1,443 @@
-<!DOCTYPE html>
-<html lang="en">
-
+ <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quick Note Taker</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+  <meta charset="UTF-8">
+  <title>Quick Note Taker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:         #0d0d0f;
+      --surface:    #16161a;
+      --surface2:   #1e1e24;
+      --surface3:   #252530;
+      --border:     #2a2a35;
+      --accent:     #7f5af0;
+      --accent2:    #2cb67d;
+      --danger:     #ef4565;
+      --text:       #fffffe;
+      --text-muted: #72717a;
+      --sidebar-w:  255px;
+    }body.light {
+      --bg:         #ffffff;
+      --surface:    #f3ebf7;
+      --surface2:   #f3eaf7;
+      --surface3:   #ceceea;
+      --border:     #d1d1d6;
+      --text:       #1a1a2e;
+      --text-muted: #8e8e93;
+    }
+    body.light {
+      background-image:
+      radial-gradient(ellipse at 10% 10%, rgba(127,90,240,0.05) 0%, transparent 55%),
+      radial-gradient(ellipse at 90% 90%, rgba(44,182,125,0.04) 0%, transparent 55%);
+    }
 
-        body {
-            font-family: system-ui, sans-serif;
-            background: #f4f4f4;
-            min-height: 100vh;
-        }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg); color: var(--text);
+      height: 100vh; display: flex; overflow: hidden;
+      background-image:
+        radial-gradient(ellipse at 10% 10%, rgba(127,90,240,0.07) 0%, transparent 55%),
+        radial-gradient(ellipse at 90% 90%, rgba(44,182,125,0.05) 0%, transparent 55%);
+    }
 
-        #app {
-            display: flex;
-            height: 100vh;
-        }
+    /* ── SIDEBAR ── */
+    #sidebar {
+      width: var(--sidebar-w); min-width: var(--sidebar-w);
+      background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 12.2px 14px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .sidebar-logo {
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-size: 15px; box-shadow: 0 0 12px rgba(127,90,240,0.4); flex-shrink: 0;
+    }
+    .sidebar-title { font-size: 13px; font-weight: 800; letter-spacing: -0.2px; }
+    .sidebar-sub   { font-size: 9px; color: var(--text-muted); font-family: 'Space Mono', monospace; margin-top: 1px; }
 
-        #sidebar {
-            width: 220px;
-            background: #2b2b2b;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            padding: 10px;
-            gap: 8px;
-        }
+    #new-note-btn {
+      margin: 10px 10px 6px; width: calc(100% - 20px);
+      padding: 9px 12px; font-family: 'Syne', sans-serif;
+      font-size: 12px; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      color: #fff; border: none; border-radius: 9px; cursor: pointer;
+      display: flex; align-items: center; gap: 7px;
+      box-shadow: 0 3px 14px rgba(127,90,240,0.38);
+      transition: filter 0.15s, transform 0.12s; flex-shrink: 0;
+    }
+    #new-note-btn:hover  { filter: brightness(1.12); }
+    #new-note-btn:active { transform: scale(0.97); }
 
-        #note-list {
-            flex: 1;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
+    /* FEATURE: Sidebar search */
+    #search-wrap {
+      padding: 0 10px 6px; flex-shrink: 0;
+    }
+    #search-input {
+      width: 100%; padding: 7px 10px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text);
+      font-family: 'Space Mono', monospace; font-size: 11px;
+      outline: none; transition: border-color 0.15s;
+    }
+    #search-input:focus { border-color: var(--accent); }
+    #search-input::placeholder { color: var(--text-muted); }
 
-        #editor {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            padding: 15px;
-            gap: 10px;
-        }
+    .note-list-label {
+      font-family: 'Space Mono', monospace; font-size: 9px;
+      color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase;
+      padding: 2px 14px 5px; flex-shrink: 0;
+    }
+    #note-list {
+      flex: 1; overflow-y: auto; padding: 0 6px 12px;
+      display: flex; flex-direction: column; gap: 3px;
+    }
+    #note-list::-webkit-scrollbar { width: 4px; }
+    #note-list::-webkit-scrollbar-track { background: transparent; }
+    #note-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-        #note-title {
-            font-size: 18px;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-        }
+    .sidebar-empty {
+      text-align: center; padding: 28px 10px;
+      font-family: 'Space Mono', monospace; font-size: 10px;
+      color: var(--text-muted); line-height: 1.8;
+    }
 
-        textarea {
-            flex: 1;
-            font-size: 16px;
-            padding: 12px;
-            resize: none;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-        }
+    /* FEATURE: Trash bin button */
+    #trash-btn {
+      margin: 0 10px 10px; width: calc(100% - 20px);
+      padding: 7px 12px; font-family: 'Syne', sans-serif;
+      font-size: 11px; font-weight: 600;
+      background: transparent; color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+      display: flex; align-items: center; gap: 7px;
+      transition: all 0.15s; flex-shrink: 0;
+    }
+    #trash-btn:hover { color: var(--danger); border-color: var(--danger); background: rgba(239,69,101,0.07); }
 
-        #toolbar {
-            display: flex;
-            gap: 8px;
-        }
+    .note-item {
+      background: var(--surface2); border: 1px solid transparent;
+      border-radius: 8px; padding: 9px 8px 9px 10px;
+      cursor: pointer; display: flex; align-items: flex-start; gap: 5px;
+      transition: background 0.13s, border-color 0.13s;
+    }
+    .note-item:hover { background: var(--surface3); }
+    .note-item.active { background: rgba(127,90,240,0.17); border-color: rgba(127,90,240,0.42); }
+    .note-item-body { flex: 1; min-width: 0; }
+    .note-item-title {
+      font-size: 12px; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
+    }
+    .note-item-preview {
+      font-size: 10px; color: var(--text-muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;
+    }
+    .note-item-date { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--text-muted); margin-top: 3px; }
+    .note-item-del {
+      background: transparent; border: none; color: var(--text-muted); font-size: 12px;
+      cursor: pointer; padding: 1px 3px; border-radius: 4px; flex-shrink: 0;
+      transition: color 0.13s, background 0.13s; opacity: 0;
+      font-family: 'Space Mono', monospace;
+    }
+    .note-item:hover .note-item-del { opacity: 1; }
+    .note-item-del:hover { color: var(--danger); background: rgba(239,69,101,0.13); }
 
-        button {
-            padding: 8px 12px;
-        }
+    /* ── EDITOR ── */
+    #editor { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
-        #save_status {
-            font-size: 14px;
-            color: #333;
-        }
-    </style>
+    .editor-topbar {
+      padding: 13px 20px;
+      display: flex; align-items: center; gap: 12px; padding: 13px 20px;
+      border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0;
+    }
+    #note-title {
+      flex: 1; background: transparent; border: none; outline: none;
+      font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 800;
+      color: var(--text); letter-spacing: -0.3px;
+    }
+    #note-title::placeholder { color: var(--text-muted); }
+    #noteMeta { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--text-muted); flex-shrink: 0; white-space: nowrap; }
+
+    /* FEATURE: Zoom indicator */
+    #zoom-indicator {
+      font-family: 'Space Mono', monospace; font-size: 10px; color: var(--accent);
+      flex-shrink: 0; display: none;
+    }
+
+    .toolbar {
+      display: flex; align-items: center; gap: 8px; padding: 9px 20px;
+      border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap;
+    }
+    .toolbar button {
+      font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+      padding: 7px 15px; border: none; border-radius: 8px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+      transition: transform 0.1s, filter 0.13s;
+    }
+    .toolbar button:active { transform: scale(0.96); }
+    #saveBtn { background: linear-gradient(135deg, var(--accent), #a78bfa); color: #fff; box-shadow: 0 3px 12px rgba(127,90,240,0.38); }
+    #saveBtn:hover { filter: brightness(1.1); }
+    #saveAsBtn, #openFileBtn { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+    #saveAsBtn:hover, #openFileBtn:hover { color: var(--text); background: var(--surface3); }
+    #exportPdfBtn { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+    #exportPdfBtn:hover { color: var(--danger); border-color: var(--danger); background: rgba(239,69,101,0.07); }
+
+    .textarea-wrap { flex: 1; position: relative; overflow: hidden; }
+    .line-numbers {
+      position: absolute; top: 14px; left: 0; width: 38px;
+      text-align: right; padding-right: 8px;
+      font-family: 'Space Mono', monospace; font-size: 12px; line-height: 1.8;
+      color: var(--border); pointer-events: none; user-select: none; overflow: hidden;
+    }
+    #note {
+      width: 100%; height: 100%; background: transparent; color: var(--text);
+      font-family: 'Space Mono', monospace; font-size: 14px; line-height: 1.8;
+      padding: 14px 20px 14px 52px; border: none; outline: none; resize: none;
+      caret-color: var(--accent);
+    }
+    #note::placeholder { color: var(--text-muted); }
+    #note::-webkit-scrollbar { width: 6px; }
+    #note::-webkit-scrollbar-track { background: transparent; }
+    #note::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .empty-state {
+      display: none; position: absolute; inset: 0;
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; color: var(--text-muted);
+      font-family: 'Space Mono', monospace; font-size: 11px; background: var(--bg);
+    }
+    .empty-state.show { display: flex; }
+    .empty-icon { font-size: 44px; opacity: 0.35; }
+
+    .statusbar {
+      display: flex; align-items: center; gap: 8px; padding: 7px 20px;
+      border-top: 1px solid var(--border); background: var(--surface);
+      font-family: 'Space Mono', monospace; font-size: 10px; color: var(--text-muted); flex-shrink: 0;
+    }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); transition: background 0.3s, box-shadow 0.3s; flex-shrink: 0; }
+    .status-dot.saved   { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+    .status-dot.saving  { background: var(--accent);  box-shadow: 0 0 6px var(--accent); }
+    .status-dot.deleted { background: var(--danger);  box-shadow: 0 0 6px var(--danger); }
+    .statusbar-stats { margin-left: auto; display: flex; gap: 14px; }
+    .stat { display: flex; align-items: baseline; gap: 4px; }
+    .stat-num   { font-size: 12px; font-weight: 700; color: var(--text); }
+    .stat-label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+    /* ══════════════════════════════════════════════
+       MODAL — shared by shortcuts, stats, trash
+    ══════════════════════════════════════════════ */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 999;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px 30px; max-width: 560px; width: 90%;
+      max-height: 80vh; overflow-y: auto; position: relative;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .modal h2 { font-size: 17px; font-weight: 800; margin-bottom: 18px; }
+    .modal-close {
+      position: absolute; top: 16px; right: 18px;
+      background: transparent; border: none; color: var(--text-muted);
+      font-size: 18px; cursor: pointer; line-height: 1; padding: 2px 6px;
+      border-radius: 6px; transition: color 0.13s;
+    }
+    .modal-close:hover { color: var(--text); }
+
+    /* ── Shortcuts modal ── */
+    .shortcut-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+    .shortcut-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-radius: 6px; }
+    .shortcut-row:hover { background: var(--surface2); }
+    .shortcut-label { font-size: 12px; color: var(--text-muted); }
+    .shortcut-key { display: flex; gap: 4px; }
+    kbd {
+      background: var(--surface3); border: 1px solid var(--border);
+      border-radius: 5px; padding: 2px 7px; font-family: 'Space Mono', monospace;
+      font-size: 10px; color: var(--text); white-space: nowrap;
+    }
+    .shortcut-section { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; margin: 12px 0 6px; grid-column: 1 / -1; }
+
+    /* ── Stats modal ── */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+    .stat-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px;
+    }
+    .stat-card-num  { font-size: 28px; font-weight: 800; color: var(--accent); line-height: 1; }
+    .stat-card-label { font-size: 10px; color: var(--text-muted); margin-top: 4px; font-family: 'Space Mono', monospace; }
+    .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-row-label { color: var(--text-muted); }
+    .stat-row-val { font-weight: 700; }
+
+    /* ── Trash modal ── */
+    .trash-item {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .trash-item-body { flex: 1; min-width: 0; }
+    .trash-item-title { font-size: 13px; font-weight: 700; }
+    .trash-item-date  { font-size: 10px; color: var(--text-muted); font-family: 'Space Mono', monospace; margin-top: 2px; }
+    .trash-actions { display: flex; gap: 6px; }
+    .btn-restore {
+      padding: 5px 11px; border-radius: 7px; border: none; cursor: pointer;
+      font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+      background: rgba(44,182,125,0.15); color: var(--accent2); transition: background 0.13s;
+    }
+    .btn-restore:hover { background: rgba(44,182,125,0.28); }
+    .btn-perma-del {
+      padding: 5px 11px; border-radius: 7px; border: none; cursor: pointer;
+      font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+      background: rgba(239,69,101,0.13); color: var(--danger); transition: background 0.13s;
+    }
+    .btn-perma-del:hover { background: rgba(239,69,101,0.25); }
+    .btn-empty-trash {
+      width: 100%; margin-top: 10px; padding: 9px;
+      background: rgba(239,69,101,0.13); color: var(--danger);
+      border: 1px solid rgba(239,69,101,0.3); border-radius: 8px; cursor: pointer;
+      font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+      transition: background 0.13s;
+    }
+    .btn-empty-trash:hover { background: rgba(239,69,101,0.25); }
+    .trash-empty-msg { text-align: center; padding: 28px 0; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text-muted); }
+
+    /* ── PDF print styles ── */
+    @media print {
+      #sidebar, .toolbar, .statusbar, .line-numbers,
+      .modal-overlay, #zoom-indicator { display: none !important; }
+      #editor { display: block !important; }
+      .editor-topbar { border: none !important; padding: 0 0 12px !important; }
+      #note { padding: 0 !important; border: none !important; height: auto !important; overflow: visible !important; white-space: pre-wrap; }
+      body { background: #fff !important; color: #000 !important; }
+      #note-title { color: #000 !important; }
+    }
+    #theme-toggle {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); border-radius: 7px;
+  padding: 4px 9px; font-size: 14px; cursor: pointer;
+  transition: all 0.15s; flex-shrink: 0;
+}
+#theme-toggle:hover { background: var(--surface2); color: var(--text); }
+  </style>
 </head>
-
 <body>
-    <div id="app">
-        <div id="sidebar">
-            <button id="new-note">New Note</button>
-            <div id="note-list"></div>
-        </div>
-        <div id="editor">
-            <input type="text" id="note-title" placeholder="Note title ...">
-            <textarea id="note" placeholder="Start typing your note"></textarea>
-            <div id="toolbar">
-                <button id="save">Save</button>
-                <button id="save-as">Save As</button>
-                <button id="open-file">Open File</button>
-            </div>
-            <p id="save_status"></p>
-            <span id="word-count">Words: 0 | Characters: 0</span>
-        </div>
-    </div>
-    <script src="renderer.js"></script>
-</body>
 
+  <!-- ══ SIDEBAR ══ -->
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">📝</div>
+      <div>
+        <div class="sidebar-title">Quick Note</div>
+        <div class="sidebar-sub">// multi-note · auto-save</div>
+      </div>
+    </div>
+
+    <button id="new-note-btn">➕ New Note</button>
+
+    <div id="search-wrap">
+      <input id="search-input" type="text" placeholder="🔍  Search notes…" autocomplete="off">
+    </div>
+
+    <div class="note-list-label">All Notes</div>
+    <div id="note-list"></div>
+
+    <button id="trash-btn">🗑 Trash Bin</button>
+  </div>
+
+  <!-- ══ EDITOR ══ -->
+  <div id="editor">
+    <div class="editor-topbar">
+      <input id="note-title" type="text" placeholder="Note title…" autocomplete="off" spellcheck="false">
+      <span id="zoom-indicator"></span>
+      <button id="theme-toggle" title="Toggle dark/light mode">🌙</button>
+      <div id="noteMeta"></div>
+    </div>
+
+    <div class="toolbar">
+      <button id="saveBtn">💾 Save</button>
+      <button id="saveAsBtn">📁 Save As</button>
+      <button id="openFileBtn">📂 Open File</button>
+      <button id="exportPdfBtn">📄 Export PDF</button>
+    </div>
+
+    <div class="textarea-wrap">
+      <div class="line-numbers" id="lineNumbers">1</div>
+      <textarea id="note" placeholder="Start typing your note…" spellcheck="true"></textarea>
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">📋</div>
+        <div>Select a note or create a new one</div>
+      </div>
+    </div>
+
+    <div class="statusbar">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Ready</span>
+      <div class="statusbar-stats">
+        <div class="stat">
+          <span class="stat-num" id="wordCount">0</span>
+          <span class="stat-label">Words</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" id="charCount">0</span>
+          <span class="stat-label">Chars</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MODAL: Keyboard Shortcuts ══ -->
+  <div class="modal-overlay" id="shortcutsModal">
+    <div class="modal">
+      <button class="modal-close" id="shortcutsClose">✕</button>
+      <h2>⌨️ Keyboard Shortcuts</h2>
+      <div class="shortcut-grid">
+        <div class="shortcut-section">Notes</div>
+        <div class="shortcut-row"><span class="shortcut-label">New Note</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>N</kbd></span></div>
+        <div class="shortcut-row"><span class="shortcut-label">Save</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>S</kbd></span></div>
+        <div class="shortcut-row"><span class="shortcut-label">Save As</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>S</kbd></span></div>
+        <div class="shortcut-row"><span class="shortcut-label">Open File</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>O</kbd></span></div>
+        <div class="shortcut-row"><span class="shortcut-label">Export PDF</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>E</kbd></span></div>
+        <div class="shortcut-section">View</div>
+        <div class="shortcut-row"><span class="shortcut-label">Zoom In</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>+</kbd></span></div>
+        <div class="shortcut-row"><span class="shortcut-label">Zoom Out</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>-</kbd></span></div>
+        <div class="shortcut-row"><span class="shortcut-label">Reset Zoom</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>0</kbd></span></div>
+        <div class="shortcut-row"><span class="shortcut-label">Statistics</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>I</kbd></span></div>
+        <div class="shortcut-row"><span class="shortcut-label">This Dialog</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>/</kbd></span></div>
+        <div class="shortcut-section">App</div>
+        <div class="shortcut-row"><span class="shortcut-label">Quit</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>Q</kbd></span></div>
+        <div class="shortcut-row"><span class="shortcut-label">Undo</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>Z</kbd></span></div>
+        <div class="shortcut-row"><span class="shortcut-label">Redo</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>Y</kbd></span></div>
+        <div class="shortcut-row"><span class="shortcut-label">Cut / Copy / Paste</span><span class="shortcut-key"><kbd>Ctrl</kbd><kbd>X/C/V</kbd></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MODAL: Statistics ══ -->
+  <div class="modal-overlay" id="statsModal">
+    <div class="modal">
+      <button class="modal-close" id="statsClose">✕</button>
+      <h2>📊 Note Statistics</h2>
+      <div class="stats-grid" id="statsGrid"></div>
+      <div id="statsExtra"></div>
+    </div>
+  </div>
+
+  <!-- ══ MODAL: Trash Bin ══ -->
+  <div class="modal-overlay" id="trashModal">
+    <div class="modal">
+      <button class="modal-close" id="trashClose">✕</button>
+      <h2>🗑 Trash Bin</h2>
+      <div id="trashList"></div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
 </html>
