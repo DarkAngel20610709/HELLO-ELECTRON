@@ -1,5 +1,5 @@
  // renderer.js — Quick Note Taker (Final Project Edition)
-// Features added: Export PDF, Trash Bin, Recent Files, Shortcuts Dialog, Statistics, Zoom
+// Features added: , Trash Bin, Recent Files, Shortcuts Dialog, Statistics, Zoom
 
 window.addEventListener('DOMContentLoaded', async () => {
 
