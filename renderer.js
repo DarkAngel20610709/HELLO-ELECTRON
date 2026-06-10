@@ -514,7 +514,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     window.electronAPI.onMenuAction('menu-open-file', () => openFile());
     window.electronAPI.onMenuAction('menu-save', () => saveCurrentNote());
     window.electronAPI.onMenuAction('menu-save-as', () => saveAs());
-    window.electronAPI.onMenuAction('menu-export-pdf', () => exportPdf());
     window.electronAPI.onMenuAction('menu-open-trash', () => openTrash());
     window.electronAPI.onMenuAction('menu-stats', () => openStats());
     window.electronAPI.onMenuAction('menu-shortcuts', () => shortcutsModal.classList.add('show'));
@@ -535,8 +534,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     saveBtn.addEventListener('click', () => saveCurrentNote());
     saveAsBtn.addEventListener('click', () => saveAs());
     openFileBtn.addEventListener('click', () => openFile());
-    exportPdfBtn.addEventListener('click', () => exportPdf());
-    emojiBtn.addEventListener('click', () => emojiPanel.classList.toggle('show'));
+     emojiBtn.addEventListener('click', () => emojiPanel.classList.toggle('show'));
     emojiPanel.addEventListener('click', (event) => {
         if (event.target.classList.contains('emoji-chip')) {
             insertAtCursor(textarea, event.target.textContent);
