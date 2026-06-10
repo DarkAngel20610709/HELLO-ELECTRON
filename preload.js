@@ -19,8 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ── FEATURE: Recent files ──────────────────────────────────────────────────
     loadFileByPath: (fp) => ipcRenderer.invoke('load-file-by-path', fp),
 
-    // ── FEATURE: Export as PDF ─────────────────────────────────────────────────
-    exportPdf: (title, content) => ipcRenderer.invoke('export-pdf', { title, content }),
+   
 
     // ── FEATURE: Zoom ──────────────────────────────────────────────────────────
     saveZoom: (factor) => ipcRenderer.invoke('save-zoom', factor),
