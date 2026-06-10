@@ -325,20 +325,7 @@ ipcMain.handle('save-note-as', async (event, text) => {
     return { success: true, filePath };
 });
 
-// ── FEATURE: Export as PDF ─────────────────────────────────────────────────────
-ipcMain.handle('export-pdf', async (event, payload) => {
-    const title = (payload && payload.title) || 'note';
-    const content = (payload && payload.content) || '';
-
-    const fileName = (title || 'note').replace(/[/\\?%*:|"<>]/g, '-') + '.pdf';
-    const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
-        title: 'Export as PDF',
-        defaultPath: path.join(app.getPath('documents'), fileName),
-        filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
-    });
-    if (canceled || !filePath) return { success: false };
-
-    const html = `<!DOCTYPE html>
+ 
 <html lang="en">
 <head>
     <meta charset="UTF-8">
